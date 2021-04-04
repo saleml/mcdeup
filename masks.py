@@ -50,13 +50,11 @@ class CustomDropout(nn.Module):
         db = DifferentiableBernoulli(torch.sigmoid(premask), self.tau)
         return db.sample()
 
-    def forward(self, x, premask_input=None):
-        if self.training:
+    def forward(self, x, drop=False, premask_input=None):
+        if not drop:
             return x
         else:
             mask = self.eval_mask_from_premask(premask_input)
-            # print(mask.shape, x.shape)
-            # assert mask.shape[0] == x.shape[1]
             return mask * x
 
 
@@ -80,7 +78,13 @@ class ModelWithFixedDropout(nn.Module):
         self.model = model
 
     def forward(self, x, drop=False):
-        return self.model.forward(x)
+        out = x
+        for module in self.model:
+            if isinstance(module, CustomDropout):
+                out = module(out, drop, x)
+            else:
+                out = module(out)
+        return out
 
 
 class ModelWithDropout(nn.Module):
@@ -110,11 +114,11 @@ class ModelWithDropout(nn.Module):
         model.add_module('output_layer', nn.Linear(n_hidden, output_dim))
         self.model = model
 
-    def forward(self, x):
+    def forward(self, x, drop=False):
         out = x
         for module in self.model:
             if isinstance(module, CustomDropout):
-                out = module(out, x)
+                out = module(out, drop, x)
             else:
                 out = module(out)
         return out

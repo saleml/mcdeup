@@ -1,5 +1,35 @@
 import torch
 import matplotlib.pyplot as plt
+from torch.distributions.exponential import Exponential
+from torch import sigmoid
+
+
+class DifferentiableBernoulli:
+    def __init__(self, probs, tau=1):
+        """
+        :param probs: tensor of success probabilities, can be a parameter
+        :param tau: sigmoid temperature
+        """
+        self.probs = probs
+        self.tau = tau
+        self.e = Exponential(1)
+
+    def sample_logistic(self, shape):
+        X = self.e.sample(shape)
+        return torch.log(torch.exp(X) - 1)
+
+    def soft_sample(self, shape=None):
+        if shape is None:
+            shape = self.probs.shape
+        logistic_sample = self.sample_logistic(shape)
+        return sigmoid(1. / self.tau * (logistic_sample + torch.log(self.probs / (1 - self.probs))))
+
+    def sample(self, shape, soft=False):
+        soft_samples = self.soft_sample(shape)
+        if soft:
+            return soft_samples
+        hard_samples = (soft_samples > 0.5).to(torch.double)
+        return hard_samples - soft_samples.detach() + soft_samples
 
 
 def get_dist(model, x, num_samples=10):

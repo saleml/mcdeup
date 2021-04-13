@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from abc import ABC, abstractmethod
 from utils import DifferentiableBernoulli
 
+import math
 
 class Dropout(nn.Module, ABC):
     def __init__(self):
@@ -63,3 +65,45 @@ class FixedMultiplicativeGaussianPerLayer(FixedMultiplicativeGaussian):
         logsigma = logsigma if logsigma is not None else [1.]
         self.mu = mu[layer]
         self.logsigma = logsigma[layer]
+
+
+class LearnedMultiplicativeGaussian(Dropout):
+    def __init__(self, n_hidden, mu=1., logsigma=-3.):
+        # mu and sigma can be floats or tensors
+        super().__init__()
+        self.mu = mu
+        self.logsigma = logsigma
+        self.n_hidden = n_hidden
+
+        self.first = nn.Linear(n_hidden, 2 * n_hidden, bias=False)
+        self.second = nn.Linear(2 * n_hidden, 2 * n_hidden, bias=False)
+        self.out = nn.Linear(2 * n_hidden, n_hidden, bias=False)
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        self.first.weight.data.normal_(0, 1/(self.n_hidden)**0.5)
+        self.second.weight.data.normal_(0, 1/(2*self.n_hidden)**0.5)
+        self.out.weight.data.normal_(0, math.exp(self.logsigma)/(2*self.n_hidden)**0.5)
+
+    def forward(self, x, shared_mat=None, **kwargs):
+        if not self.training:
+            return x
+        else:
+            noise = F.relu(self.first(x))
+            if shared_mat is None:
+                noise = F.relu(self.second(noise))
+            else:
+                noise = F.relu(shared_mat.weight @ noise)
+            noise = self.out(noise)
+            noise = noise * torch.randn_like(x) + self.mu
+            return noise * x / self.mu
+
+
+class LearnedMultiplicativeGaussianPerLayer(LearnedMultiplicativeGaussian):
+    def __init__(self, n_hidden=None, layer=None, mu=None, logsigma=None):
+        # mu and sigma should be lists of tensors, layer an int
+        super().__init__(n_hidden)
+        
+        self.mu = mu[layer] if mu is not None else 1.
+        self.logsigma = logsigma[layer] if logsigma is not None else 1.
+        self.reset_parameters()

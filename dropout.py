@@ -17,12 +17,15 @@ class Dropout(nn.Module, ABC):
 
 
 class FixedDropout(Dropout):
-    def __init__(self, p=.2, tau=1, soft=False):
-        # p can betensor, should be inverse sigmoid of dropout prob
+    def __init__(self, p=None, tau=1, soft=False):
+        # p should be a Parameter tensor of no dimension or of dimension 1, should be inverse sigmoid of dropout prob
+        if p is None:
+            p = nn.Parameter(torch.tensor(-2))
         super().__init__()
-        self.p = p
         self.tau = tau
         self.soft = soft
+        if isinstance(p, nn.Parameter):
+            self.register_parameter('p', p)
 
     def forward(self, x, **kwargs):
         if not self.training:
@@ -37,17 +40,22 @@ class FixedDropout(Dropout):
 
 class FixedDropoutPerLayer(FixedDropout):
     def __init__(self, layer, p=None, tau=1, soft=False):
+        # p should be a list of Parameters of dimension 0 or dimension 1 corresponding to the hidden size
         super().__init__(p, tau, soft)
-        p = p if p is not None else [.2]
-        self.p = p[layer]
+        self.register_parameter('p', p[layer])
 
 
 class FixedMultiplicativeGaussian(Dropout):
-    def __init__(self, mu=1., logsigma=0.):
-        # mu and sigma can be floats or tensors
+    def __init__(self, mu=None, logsigma=None):
+        # mu and sigma should be Parameter tensors of no dimension or of dimension 1 corresponding to the hidden size
         super().__init__()
-        self.mu = mu
-        self.logsigma = logsigma
+        if mu is None:
+            mu = nn.Parameter(torch.tensor(1))
+        if logsigma is None:
+            logsigma = nn.Parameter(torch.tensor(-2))
+        if isinstance(mu, nn.Parameter) and isinstance(logsigma, nn.Parameter):
+            self.register_parameter('mu', mu)
+            self.register_parameter('logsigma', logsigma)
 
     def forward(self, x, **kwargs):
         if not self.training:
@@ -59,12 +67,61 @@ class FixedMultiplicativeGaussian(Dropout):
 
 class FixedMultiplicativeGaussianPerLayer(FixedMultiplicativeGaussian):
     def __init__(self, layer, mu=None, logsigma=None):
-        # mu and sigma should be lists of tensors, layer an int
-        super().__init__()
-        mu = mu if mu is not None else [1.]
-        logsigma = logsigma if logsigma is not None else [1.]
+        # mu and sigma should be lists of Parameters
+        super().__init__(mu, logsigma)
         self.mu = mu[layer]
         self.logsigma = logsigma[layer]
+
+
+class LearnedDropout(Dropout):
+    def __init__(self, p=.2, tau=1, soft=False, **kwargs):
+        # p can betensor, should be inverse sigmoid of dropout prob
+        super().__init__()
+        self.p = p
+        self.tau = tau
+        self.soft = soft
+
+    def forward(self, x, parametric_noise=False, noise_input=None, **kwargs):
+        if not self.training:
+            return x
+        else:
+            if parametric_noise:
+                assert isinstance(self.p, nn.Module)
+                print(noise_input)
+                p = self.p(noise_input)
+                assert p.shape == x.shape
+                db = DifferentiableBernoulli(probs=1 - torch.sigmoid(p), tau=self.tau)
+                mask = db.sample(x.shape, soft=self.soft) / (1 - p)
+            else:
+                db = DifferentiableBernoulli(probs=torch.tensor(.9), tau=self.tau)  # dropout = .2
+                mask = db.sample(shape=x.shape, soft=self.soft) / 0.9
+            return mask * x
+
+class LearnedMultiplicativeGaussian2(Dropout):
+    # dropout noise as a function of activation only
+    def __init__(self, n_hidden, mu=1., logsigma=-3., **kwargs):
+        # mu and sigma can be floats or tensors
+        super().__init__()
+        self.mu = mu
+        self.logsigma = logsigma
+        self.n_hidden = n_hidden
+
+        self.noise_generator = nn.Sequential(nn.Linear(n_hidden, n_hidden))
+
+    def forward(self, x, parametric_noise=False, noise_input=None, **kwargs):
+        if not self.training:
+            return x
+        else:
+            assert x.shape[1] == self.n_hidden
+            if parametric_noise:
+                logsigma = self.noise_generator(x)
+            else:
+                logsigma = self.logsigma
+            noise = torch.exp(logsigma) * torch.randn_like(x) + self.mu
+            return noise * x / self.mu
+
+
+
 
 
 class LearnedMultiplicativeGaussian(Dropout):
@@ -75,9 +132,9 @@ class LearnedMultiplicativeGaussian(Dropout):
         self.logsigma = logsigma
         self.n_hidden = n_hidden
 
-        self.first = nn.Linear(n_hidden, 2 * n_hidden, bias=False)
-        self.second = nn.Linear(2 * n_hidden, 2 * n_hidden, bias=False)
-        self.out = nn.Linear(2 * n_hidden, n_hidden, bias=False)
+        self.first = nn.Linear(n_hidden, n_hidden, bias=False)
+        self.second = nn.Linear(n_hidden, n_hidden, bias=False)
+        self.out = nn.Linear(n_hidden, n_hidden, bias=False)
         self.reset_parameters()
     
     def reset_parameters(self):
@@ -85,7 +142,7 @@ class LearnedMultiplicativeGaussian(Dropout):
         self.second.weight.data.normal_(0, 1/(2*self.n_hidden)**0.5)
         self.out.weight.data.normal_(0, math.exp(self.logsigma)/(2*self.n_hidden)**0.5)
 
-    def forward(self, x, shared_mat=None, **kwargs):
+    def forward(self, x, shared_mat=None, parametric_noise=False, noise_input=None, **kwargs):
         if not self.training:
             return x
         else:
@@ -94,6 +151,7 @@ class LearnedMultiplicativeGaussian(Dropout):
                 noise = F.relu(self.second(noise))
             else:
                 noise = F.relu(shared_mat.weight @ noise)
+
             noise = self.out(noise)
             noise = noise * torch.randn_like(x) + self.mu
             return noise * x / self.mu

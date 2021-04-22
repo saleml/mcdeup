@@ -26,7 +26,7 @@ def train_main_model(model, optimizer, train_data, validation_data, epochs=500, 
     return losses, valid_losses
 
 
-def train_deup(model, optimizer, full_data, epochs=500, batch_size=32, n_samples=5):
+def train_deup(model, optimizer, full_data, epochs=500, batch_size=32, n_samples=5, parametric_noise=False, x_input=False):
     loss_fn = nn.MSELoss()
 
     loader = DataLoader(full_data, shuffle=True, batch_size=batch_size)
@@ -40,7 +40,8 @@ def train_deup(model, optimizer, full_data, epochs=500, batch_size=32, n_samples
             model.eval()
             y_mean = model(xi)
             model.train()
-            y_noisy = torch.cat([model(xi) for _ in range(n_samples)], 1)
+            y_noisy = torch.cat([model(xi, parametric_noise=parametric_noise, noise_input=xi if x_input else None)
+                                 for _ in range(n_samples)], 1)
             pred_uncertainties = ((y_mean - y_noisy) ** 2)
             pred_uncertainty = pred_uncertainties.mean(1).unsqueeze(-1)
             variance_estimator = (n_samples / n_samples - 1) * torch.var(pred_uncertainties, 1)

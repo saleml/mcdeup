@@ -52,5 +52,5 @@ def generate_data(n=128, n_oos=24, n_ood=24, device=torch.device('cpu'), seed=1,
         plt.legend()
         plt.show()
 
-    return x, y, oos_x, oos_y, ood_x, ood_y, oos_x_test, oos_y_test, ood_x_test, ood_y_test
+    return x, y, oos_x, oos_y, ood_x, ood_y, oos_x_test, oos_y_test, ood_x_test, ood_y_test, x_test, y_test
 

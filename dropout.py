@@ -13,16 +13,29 @@ class Dropout(nn.Module, ABC):
     def forward(self, x, **kwargs):
         pass
 
+class SimpleDropout(Dropout):
+    def __init__(self, p=0.2):
+        super().__init__()
+        self.p = p
+
+    def forward(self, x):
+        if not self.training:
+            return x
+        else:
+            mask = torch.rand(x.shape[1:]).to(x.device).unsqueeze(0).repeat(x.size(0), 1)
+            mask = (mask > self.p).to(torch.float32)
+            #print(mask.mean())
+            return mask * x / (1 - self.p)
 
 class RegularDropout(Dropout):
-    def __init__(self, logit=None, tau=1, soft=False, noise_generator=None):
+    def __init__(self, logit=None, tau=1, p=-2., soft=False, noise_generator=None):
         # logit should be a Parameter tensor of no dimension or of dimension 1
         # noise_generator should be of instance nn.Module, its output dimension should be equal to the hidden size
         # or to 1
         super().__init__()
         self.noise_generator = noise_generator
         if logit is None:
-            logit = nn.Parameter(torch.tensor(-2.))
+            logit = nn.Parameter(torch.tensor(p)).cuda()
         self.tau = tau
         self.soft = soft
         if isinstance(logit, nn.Parameter):
@@ -41,7 +54,8 @@ class RegularDropout(Dropout):
             if logit.ndim != 0:
                 assert logit.ndim == 1 and logit.shape[0] == x.shape[1]
             db = DifferentiableBernoulli(probs=1-torch.sigmoid(logit), tau=self.tau)
-            mask = db.sample(shape=x.shape, soft=self.soft)
+            mask = db.sample(shape=x.shape[1:], soft=self.soft).unsqueeze(0).repeat(x.size(0),1)
+            #print(mask.mean())
             return mask * x / (1 - torch.sigmoid(logit))
 
 
@@ -81,7 +95,10 @@ class MultiplicativeGaussian(Dropout):
                 logsigma = self.noise_generator(noise_input)
             else:
                 logsigma = self.logsigma
-            noise = torch.exp(logsigma) * torch.randn_like(x) + self.mu
+            noise = torch.exp(logsigma) * torch.rand_like(x) + self.mu
+            #noise = torch.exp(logsigma) * torch.randn(x.shape[1:]) + self.mu
+            #noise = noise.unsqueeze(0).repeat(x.size(0),1)
+            #print(x.shape, noise.shape, noise)
             return noise * x / self.mu
 
 

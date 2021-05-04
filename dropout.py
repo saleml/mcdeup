@@ -38,8 +38,8 @@ class RegularDropout(Dropout):
                 logit = self.noise_generator(noise_input)
             else:
                 logit = self.logit
-            if logit.ndim != 0:
-                assert logit.ndim == 1 and logit.shape[0] == x.shape[1]
+            # if logit.ndim != 0:
+            #    assert logit.ndim == 1 and logit.shape[0] == x.shape[1]
             db = DifferentiableBernoulli(probs=1-torch.sigmoid(logit), tau=self.tau)
             mask = db.sample(shape=x.shape, soft=self.soft)
             return mask * x / (1 - torch.sigmoid(logit))

@@ -26,14 +26,16 @@ def train_main_model(model, optimizer, train_data, validation_data, epochs=500, 
     return losses, valid_losses
 
 
-def train_deup(model, optimizer, full_data, epochs=500, batch_size=32, n_samples=5, parametric_noise=False, x_input=False):
+def train_deup(model, optimizer, full_data, epochs=500, batch_size=32, n_samples=5, parametric_noise=False, x_input=False, callback=None):
     loss_fn = nn.MSELoss()
 
     loader = DataLoader(full_data, shuffle=True, batch_size=batch_size)
     losses = []
+    callbacks = []
 
     for epoch in range(epochs):
-
+        if callback is not None:
+            callbacks.append(callback(model))
         epoch_losses = []
         for batch_id, (xi, yi) in enumerate(loader):
             optimizer.zero_grad()
@@ -54,4 +56,4 @@ def train_deup(model, optimizer, full_data, epochs=500, batch_size=32, n_samples
             optimizer.step()
 
         losses.append(np.sum(epoch_losses) / full_data[:][0].shape[0])
-    return losses
+    return losses, callbacks

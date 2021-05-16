@@ -16,7 +16,7 @@ def oracle(x, noise=0):
                        (2 * np.pi * x).sin()) + noise * m
 
 
-def generate_data(n=128, n_oos=24, n_ood=24, device=torch.device('cpu'), seed=1, plot=False):
+def generate_data(n=128, n_oos=24, n_ood=24, device=torch.device('cpu'), seed=1, plot=False, save_plot=None):
     torch.manual_seed(seed)
 
     def split(x_data, n_data):
@@ -50,6 +50,8 @@ def generate_data(n=128, n_oos=24, n_ood=24, device=torch.device('cpu'), seed=1,
         plt.plot(oos_x_test, oos_y_test.squeeze(), 'gx', label='testOOS data')
         plt.plot(x_test, y_test.squeeze(), label='ground truth function', linewidth=.3)
         plt.legend()
+        if save_plot is not None:
+            plt.savefig(save_plot)
         plt.show()
 
     return x, y, oos_x, oos_y, ood_x, ood_y, oos_x_test, oos_y_test, ood_x_test, ood_y_test, x_test, y_test

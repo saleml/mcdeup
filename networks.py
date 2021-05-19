@@ -74,3 +74,7 @@ class AdditiveNoisyNet(nn.Module):
             else:
                 out = module(out)
         return out
+
+
+class MultiplicativeNoisyNet(nn.Module):
+    pass

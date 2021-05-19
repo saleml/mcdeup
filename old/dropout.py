@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from abc import ABC, abstractmethod
-from utils import DifferentiableBernoulli
+from old.utils import DifferentiableBernoulli
 
 
 class Dropout(nn.Module, ABC):

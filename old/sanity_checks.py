@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from networks import Model
+from networks import DropoutModel
 from old.dropout import RegularDropout, RegularDropoutPerLayer, MultiplicativeGaussian, MultiplicativeGaussianPerLayer
 
 torch.set_default_tensor_type(torch.DoubleTensor)
@@ -52,26 +52,26 @@ def analyze(model, logit=True, logsigma=False, mu=False, noise_generator=False, 
 def analyze_fixed_dropout(soft=False):
     print("Defining model with the same dropout value for all neurons")
     logit = nn.Parameter(torch.tensor(-2.))
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=RegularDropout, logit=logit, tau=1., soft=soft)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=RegularDropout, logit=logit, tau=1., soft=soft)
     analyze(model)
 
     print("Defining model with different value for all neurons but shared amongst layers")
     logit = nn.Parameter(torch.randn(3))
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=RegularDropout, logit=logit, tau=1., soft=soft)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=RegularDropout, logit=logit, tau=1., soft=soft)
     analyze(model)
 
     print("Defining model with the same dropout value for all neurons in the same layer")
     logit = [nn.Parameter(torch.tensor(-2.)), nn.Parameter(torch.tensor(-3.))]
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=RegularDropoutPerLayer, logit=logit, tau=1., soft=soft)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=RegularDropoutPerLayer, logit=logit, tau=1., soft=soft)
     analyze(model)
 
     print("Defining model with different dropout value for each neuron")
     logit = [nn.Parameter(torch.randn(3)), nn.Parameter(torch.randn(3))]
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=RegularDropoutPerLayer, logit=logit, tau=1., soft=soft)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=RegularDropoutPerLayer, logit=logit, tau=1., soft=soft)
     analyze(model)
 
 
@@ -81,8 +81,8 @@ def analyze_multiplicative_gaussian(use_mu=False):
     mu = None
     if use_mu:
         mu = nn.Parameter(torch.tensor(2.))
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma)
     analyze(model, logit=False, logsigma=True, mu=use_mu)
 
     print("Defining model with different value for all neurons but shared amongst layers")
@@ -90,8 +90,8 @@ def analyze_multiplicative_gaussian(use_mu=False):
     mu = None
     if use_mu:
         mu = nn.Parameter(torch.randn(3))
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma)
     analyze(model, logit=False, logsigma=True, mu=use_mu)
 
     print("Defining model with the same dropout value for all neurons in the same layer")
@@ -99,8 +99,8 @@ def analyze_multiplicative_gaussian(use_mu=False):
     mu = None
     if use_mu:
         mu = [nn.Parameter(torch.tensor(2.)), nn.Parameter(torch.tensor(1.))]
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma)
     analyze(model, logit=False, logsigma=True, mu=use_mu)
 
     print("Defining model with different dropout value for each neuron")
@@ -108,8 +108,8 @@ def analyze_multiplicative_gaussian(use_mu=False):
     if use_mu:
         mu = [nn.Parameter(torch.randn(3)), nn.Parameter(torch.randn(3))]
     logsigma = [nn.Parameter(torch.randn(3)), nn.Parameter(torch.randn(3))]
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma)
     analyze(model, logit=False, logsigma=True, mu=use_mu)
 
 
@@ -118,16 +118,16 @@ def analyze_learned_multiplicative_gaussian(x_input=False):
     logsigma = nn.Parameter(torch.tensor(-2.))
     mu = None
     noise_generator = nn.Linear(3, 1) if not x_input else nn.Linear(1, 1)
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
     analyze(model, logit=False, noise_generator=True, x_input=x_input)
 
     print("Defining model with different value for all neurons but shared amongst layers")
     logsigma = nn.Parameter(torch.randn(3))
     mu = None
     noise_generator = nn.Linear(3, 3) if not x_input else nn.Linear(1, 3)
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussian, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
     analyze(model, logit=False, noise_generator=True, x_input=x_input)
 
     print("Defining model with the same dropout value for all neurons in the same layer")
@@ -135,8 +135,8 @@ def analyze_learned_multiplicative_gaussian(x_input=False):
     noise_generator = [nn.Linear(3, 1) if not x_input else nn.Linear(1, 1),
                        nn.Linear(3, 1) if not x_input else nn.Linear(1, 1)]
     mu = None
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
     analyze(model, logit=False, noise_generator=True, x_input=x_input)
 
     print("Defining model with different dropout value for each neuron")
@@ -144,8 +144,8 @@ def analyze_learned_multiplicative_gaussian(x_input=False):
     logsigma = [nn.Parameter(torch.randn(3)), nn.Parameter(torch.randn(3))]
     noise_generator = [nn.Linear(3, 3) if not x_input else nn.Linear(1, 3),
                        nn.Linear(3, 3) if not x_input else nn.Linear(1, 3)]
-    model = Model(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
-                  dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
+    model = DropoutModel(input_dim=1, n_hidden=3, hidden_layers=2, output_dim=1,
+                         dropout_module=MultiplicativeGaussianPerLayer, mu=mu, logsigma=logsigma, noise_generator=noise_generator)
     analyze(model, logit=False, noise_generator=True, x_input=x_input)
 
 

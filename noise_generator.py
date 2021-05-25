@@ -16,7 +16,6 @@ class NoiseGenerator(nn.Module, ABC):
         """
         super().__init__()
         self.size = size
-        self.base_distribution = None
 
     @abstractmethod
     def forward(self, x):
@@ -27,9 +26,10 @@ class NoiseGenerator(nn.Module, ABC):
         pass
 
     @abstractmethod
-    def sample(self, x, n_samples):
+    def sample(self, x, fixed_noise=False):
         """
         :param x: input of the noise generator, tensor of shape B x ...
+        :param fixed_noise: if True, then the same sample is used for the whole batch
         :return: samples from the distribution parametrized by self(x), of shape n_samples x B x size
         """
         pass
@@ -42,15 +42,14 @@ class GaussianNoiseGenerator(NoiseGenerator):
         super().__init__(size)
         self.model = model
         self.model_out = model_out
-        if mu is None:
+        if mu is None and (model is None or model_out == 'logsigma'):
             self.mu = nn.Parameter(torch.zeros(size))
         else:
             self.mu = mu
-        if logsigma is None:
-            self.logsigma = nn.Parameter(torch.zeros(size))
+        if logsigma is None and (model is None or model_out == 'mu'):
+            self.logsigma = nn.Parameter(-2. * torch.ones(size))
         else:
             self.logsigma = logsigma
-        self.base_distribution = Normal(torch.zeros(size), torch.ones(size))
 
     def forward(self, x):
         if self.model is None:
@@ -68,9 +67,11 @@ class GaussianNoiseGenerator(NoiseGenerator):
             logsigma = out
         return mu, logsigma
 
-    def sample(self, x):
+    def sample(self, x, fixed_noise=False):
         mu, logsigma = self(x)  # of shape B x size each
         samples = mu + torch.exp(logsigma) * torch.randn(*mu.shape)
+        if fixed_noise:
+            return samples[0, :].repeat(mu.shape[0], 1)
         return samples
 
 

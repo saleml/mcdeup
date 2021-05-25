@@ -44,8 +44,8 @@ class BlockNoiseTransformer(NoiseTransformer):
         self.B = B
 
     def forward(self, z):
-        z_repeat = torch.repeat_interleave(z, self.B, 1)
-        return z_repeat[:, self.n_units]
+        z_repeat = torch.repeat_interleave(z, self.B, 1).repeat(1, self.n_units // self.B)
+        return z_repeat[:, :self.n_units]
 
 
 class NNNoiseTransformer(NoiseTransformer):

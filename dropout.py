@@ -28,18 +28,21 @@ class SimpleDropout(Dropout):
             return mask * x / (1 - self.p)
 
 class RegularDropout(Dropout):
-    def __init__(self, logit=None, tau=1, p=-2., soft=False, noise_generator=None):
+    def __init__(self, logit=None, tau=1, soft=False, noise_generator=None):
         # logit should be a Parameter tensor of no dimension or of dimension 1
         # noise_generator should be of instance nn.Module, its output dimension should be equal to the hidden size
         # or to 1
         super().__init__()
         self.noise_generator = noise_generator
         if logit is None:
-            logit = nn.Parameter(torch.tensor(p)).cuda()
+            logit = nn.Parameter(torch.tensor(-2).cuda())
         self.tau = tau
         self.soft = soft
+        print(type(logit))
         if isinstance(logit, nn.Parameter):
+            print('registering')
             self.register_parameter('logit', logit)
+            self.logit = logit
 
     def forward(self, x, parametric_noise=False, noise_input=None):
         if not self.training:

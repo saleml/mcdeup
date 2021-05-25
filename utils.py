@@ -17,7 +17,7 @@ class DifferentiableBernoulli:
 
     def sample_logistic(self, shape):
         X = self.e.sample(shape)
-        return torch.log(torch.exp(X) - 1)
+        return torch.log(torch.exp(X) - 1).cuda()
 
     def soft_sample(self, shape=None):
         if shape is None:
@@ -78,15 +78,15 @@ def evaluate_and_plot(model, x_test, full_X, full_Y, oos_ood=None, test_data=Non
         Y_mean, Y_std = get_dist_deup(model, x_test, n_samples=n_samples, parametric_noise=parametric_noise, x_input=x_input)
     else:
         Y_mean, Y_std = get_dist(model, x_test, num_samples=100)
-    plt.plot(full_X, full_Y, 'r.', label='train_data')
+    plt.plot(full_X.cpu(), full_Y.cpu(), 'r.', label='train_data')
     if oos_ood is not None:
-        plt.plot(oos_ood[0], oos_ood[1], 'c.', label='OOD and OOS for deup')
+        plt.plot(oos_ood[0].cpu(), oos_ood[1].cpu(), 'c.', label='OOD and OOS for deup')
     if test_data is not None:
-        plt.plot(test_data[:][0], test_data[:][1], 'cx', label='test_data')
+        plt.plot(test_data[:][0].cpu(), test_data[:][1].cpu(), 'cx', label='test_data')
     # plt.scatter(x_test, Y_mean, s=.2, label='mean of dropout masks')
 
-    plt.plot(x_test, non_dropout_pred, 'k', label='model prediction (no unit dropped)')
+    plt.plot(x_test.cpu(), non_dropout_pred.cpu(), 'k', label='model prediction (no unit dropped)')
 
-    plt.fill_between(x_test.squeeze(), Y_mean - Y_std, Y_mean + Y_std, color='crimson', alpha=.2)
+    plt.fill_between(x_test.cpu().squeeze(), (Y_mean - Y_std).cpu(), (Y_mean + Y_std).cpu(), color='crimson', alpha=.2)
     plt.legend()
     plt.show()

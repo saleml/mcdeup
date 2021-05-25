@@ -16,6 +16,7 @@ class Model(nn.Module):
             model.add_module('activation{}'.format(i + 1), activation_fn())
             if dropout_module in (RegularDropoutPerLayer, MultiplicativeGaussianPerLayer):
                 kwargs.update({'layer': i})
+            print(kwargs)
             model.add_module('dropout{}'.format(i + 1), dropout_module(**kwargs))
         model.add_module('output_layer', nn.Linear(n_hidden, output_dim))
         self.model = model

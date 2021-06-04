@@ -17,7 +17,7 @@ class DifferentiableBernoulli:
 
     def sample_logistic(self, shape):
         X = self.e.sample(shape)
-        return torch.log(torch.exp(X) - 1)
+        return torch.log(torch.exp(X) - 1).cuda()
 
     def soft_sample(self, shape=None):
         if shape is None:
@@ -51,7 +51,7 @@ def eval_error(model, X, Y, n_samples=1, parametric_noise=False, x_input=False):
     model.train()
 
     y_noisy = torch.cat([model(X, parametric_noise=parametric_noise, noise_input=X if x_input else None)
-                         for _ in range(n_samples)], 1)
+                                 for _ in range(n_samples)], 1)
     pred_uncertainties = ((y_mean - y_noisy) ** 2)
     pred_uncertainty = pred_uncertainties.mean(1).unsqueeze(-1)
 
@@ -69,47 +69,24 @@ def get_dist_deup(model_drop, x, n_samples=1, parametric_noise=False, x_input=Fa
     return y_mean.detach().squeeze(), y_std.detach().squeeze()
 
 
-def get_dist_regular_deup(model, deup_model, x):
-    model.eval()
-    y_mean = model(x)
-    y_std = deup_model(x).pow(2).sum(1, keepdims=True).pow(.5)
-    return y_mean.detach().squeeze(), y_std.detach().squeeze()
-
-
-def eval_error_regular_deup(model, deup_model, X, Y):
-    model.eval()
-    y_mean = model(X)
-    model.train()
-    true_uncertainty = (Y - y_mean) ** 2
-    deup_model.eval()
-    pred_uncertainty = deup_model(X).pow(2).sum(1, keepdims=True)
-
-    return ((pred_uncertainty - true_uncertainty) ** 2).mean()
-
-
 def evaluate_and_plot(model, x_test, full_X, full_Y, oos_ood=None, test_data=None, deup=False, parametric_noise=False,
-                      x_input=False, n_samples=1, deup_model=None, save_plot=None):
+                      x_input=False, n_samples=1):
     plt.figure(figsize=(15, 5))
     model.eval()
     non_dropout_pred = model(x_test).detach()
-    if deup_model is None:
-        if deup:
-            Y_mean, Y_std = get_dist_deup(model, x_test, n_samples=n_samples, parametric_noise=parametric_noise,
-                                          x_input=x_input)
-        else:
-            Y_mean, Y_std = get_dist(model, x_test, num_samples=100)
+    if deup:
+        Y_mean, Y_std = get_dist_deup(model, x_test, n_samples=n_samples, parametric_noise=parametric_noise, x_input=x_input)
     else:
-        Y_mean, Y_std = get_dist_regular_deup(model, deup_model, x_test)
-    plt.plot(full_X, full_Y, 'r.', label='train_data')
+        Y_mean, Y_std = get_dist(model, x_test, num_samples=100)
+    plt.plot(full_X.cpu(), full_Y.cpu(), 'r.', label='train_data')
     if oos_ood is not None:
-        plt.plot(oos_ood[0], oos_ood[1], 'c.', label='OOD and OOS for deup')
+        plt.plot(oos_ood[0].cpu(), oos_ood[1].cpu(), 'c.', label='OOD and OOS for deup')
     if test_data is not None:
-        plt.plot(test_data[:][0], test_data[:][1], 'cx', label='test_data')
+        plt.plot(test_data[:][0].cpu(), test_data[:][1].cpu(), 'cx', label='test_data')
     # plt.scatter(x_test, Y_mean, s=.2, label='mean of dropout masks')
 
-    plt.plot(x_test, non_dropout_pred, 'k', label='model prediction')
-    plt.fill_between(x_test.squeeze(), Y_mean - Y_std, Y_mean + Y_std, color='crimson', alpha=.2)
-    plt.legend(loc='lower left')
-    if save_plot is not None:
-        plt.savefig(save_plot)
+    plt.plot(x_test.cpu(), non_dropout_pred.cpu(), 'k', label='model prediction (no unit dropped)')
+
+    plt.fill_between(x_test.cpu().squeeze(), (Y_mean - Y_std).cpu(), (Y_mean + Y_std).cpu(), color='crimson', alpha=.2)
+    plt.legend()
     plt.show()

@@ -34,7 +34,7 @@ class Trainer:
                 count += len(xi)
                 self.optimizer.zero_grad()
 
-                z = torch.randn(len(xi), self.model.noise_dim).to(self.device)
+                z = torch.zeros(len(xi), self.model.noise_dim).to(self.device)
                 y_hat = self.model(xi, z)
 
                 f_loss = self.loss_fn(y_hat, yi)
@@ -47,7 +47,6 @@ class Trainer:
         alpha = 1
         gamma = 1
         beta = 1
-        loss_pow = 1
         for epoch in range(epochs):
             count = 0.
             epoch_losses = []
@@ -69,9 +68,41 @@ class Trainer:
                 r_2 = yi_2 - mu_2
 
                 f_loss = alpha * self.loss_fn(y_hat, yi) + \
-                         gamma * self.loss_fn((r_hat_1 * r_hat_2) ** loss_pow, (r_1 * r_2) ** loss_pow) + \
-                         beta * self.loss_fn(r_hat_1 ** loss_pow, r_1 ** loss_pow) + \
-                         beta * self.loss_fn(r_hat_2 ** loss_pow, r_2 ** loss_pow)
+                         gamma * self.loss_fn((r_hat_1 * r_hat_2), (r_1 * r_2)) + \
+                         beta * self.loss_fn(r_hat_1, r_1) + \
+                         beta * self.loss_fn(r_hat_2, r_2)
+                epoch_losses.append(f_loss.item() * xi.shape[0])
+                f_loss.backward()
+                self.deup_optimizer.step()
+            self.deup_train_losses.append(np.sum(epoch_losses) / count)
+
+
+    def train_deup_tmp(self, epochs):
+        alpha = 1
+        gamma = 1
+        beta = 1
+        for epoch in range(epochs):
+            count = 0.
+            epoch_losses = []
+            for batch_id, (xi, yi) in enumerate(self.deup_loader):
+                count += len(xi)
+                self.deup_optimizer.zero_grad()
+
+                z = torch.randn(len(xi), self.model.noise_dim).to(self.device)
+                y_hat = self.model(xi, z)
+
+                z_prime = torch.randn(1, self.model.noise_dim).repeat(len(xi), 1).to(self.device)
+                mu = self.model(xi)
+                r_hat = self.model(xi, z_prime) - mu
+                r = mu - yi
+
+                coresidual = torch.matmul(r, r.T)
+                coresidual_hat = torch.matmul(r_hat, r_hat.T)
+
+                f_loss = alpha * self.loss_fn(y_hat, yi) + \
+                         gamma * self.loss_fn(coresidual, coresidual_hat) + \
+                         beta * self.loss_fn(r_hat, r)
+
                 epoch_losses.append(f_loss.item() * xi.shape[0])
                 f_loss.backward()
                 self.deup_optimizer.step()

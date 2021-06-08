@@ -66,7 +66,6 @@ class Trainer:
         # use the same z ? how ? same function? evaluating M twice is redundant
         if z is None:
             z = torch.randn(K, self.model.noise_dim).repeat(len(xi), 1, 1).transpose(0, 1).to(self.device)  # K x B x noise_dim
-        print(z.shape)
         M = self.model(xi, z)  # K x B x 1
         y_hat = self.model(xi)
         residuals_squared = (y_hat - yi).pow(2)  # B x 1

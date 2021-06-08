@@ -43,10 +43,39 @@ class Trainer:
                 self.optimizer.step()
             self.train_losses.append(np.sum(epoch_losses) / count)
 
-    def train_deup(self, epochs):
-        alpha = 1
-        gamma = 1
-        beta = 1
+    def loss_2(self, xi, yi, K=5, z=None):
+        # xi and yi are B x ... tensors, with B >=2
+        # This returns L2(x, x', y, y', z_1, ..., z_K) for every x, x' in xi, y, y' in yi
+        # i.e. it returns a B x B tensor of such losses
+        if z is None:
+            z = torch.randn(K, self.model.noise_dim).repeat(len(xi), 1, 1).transpose(0, 1).to(self.device)  # K x B x noise_dim
+        y_hat = self.model(xi)
+
+        M = self.model(xi, z)  # K x B x 1  ( 1 because its univariate regression)
+        M = M.squeeze().transpose(0, 1)  # B x K (M_(i, k)) is f(xi, zk) as a sclaar (univeriate regression)
+        predicted_covariance = (1. / (K - 1) * torch.matmul(M, M.T) +
+                                1. / (K * (K - 1)) * torch.outer(M.sum(1), M.sum(1).T))  # B x B
+
+        residuals = y_hat - yi  # B x 1
+        coresiduals = torch.matmul(residuals, residuals.T)
+
+        return (predicted_covariance - coresiduals).pow(2)
+
+    def loss_1(self, xi, yi, K=5, z=None, alpha_1=1, alpha_2=1):
+        # returns a one-dimensional tensor of size B representing L1(x, y)
+        # use the same z ? how ? same function? evaluating M twice is redundant
+        if z is None:
+            z = torch.randn(K, self.model.noise_dim).repeat(len(xi), 1, 1).transpose(0, 1).to(self.device)  # K x B x noise_dim
+        print(z.shape)
+        M = self.model(xi, z)  # K x B x 1
+        y_hat = self.model(xi)
+        residuals_squared = (y_hat - yi).pow(2)  # B x 1
+        loss_11 = (M.mean(0) - y_hat).pow(2).squeeze()
+        loss_12 = (M.var(0) - residuals_squared).pow(2).squeeze()
+
+        return alpha_1 * loss_11 + alpha_2 * loss_12
+
+    def train_deup(self, epochs, K=5, alpha_1=1, alpha_2=1, beta=1):
         for epoch in range(epochs):
             count = 0.
             epoch_losses = []
@@ -54,57 +83,17 @@ class Trainer:
                 count += len(xi)
                 self.deup_optimizer.zero_grad()
 
-                z = torch.randn(len(xi), self.model.noise_dim).to(self.device)
-                y_hat = self.model(xi, z)
+                loss_1 = self.loss_1(xi, yi, K, alpha_1=alpha_1, alpha_2=alpha_2)
+                loss_2 = self.loss_2(xi, yi, K)
 
-                z_prime = torch.randn(len(xi) // 2, self.model.noise_dim).to(self.device)
-                xi_1, xi_2 = xi[:len(xi) // 2], xi[len(xi) // 2:]
-                yi_1, yi_2 = yi[:len(yi) // 2], yi[len(yi) // 2:]
-                mu_1 = self.model(xi_1)
-                mu_2 = self.model(xi_2)
-                r_hat_1 = self.model(xi_1, z_prime) - mu_1
-                r_hat_2 = self.model(xi_2, z_prime) - mu_2
-                r_1 = yi_1 - mu_1
-                r_2 = yi_2 - mu_2
+                loss_1 = loss_1.repeat(len(xi), 1)
+                loss_1 = loss_1 + loss_1.T
 
-                f_loss = alpha * self.loss_fn(y_hat, yi) + \
-                         gamma * self.loss_fn((r_hat_1 * r_hat_2), (r_1 * r_2)) + \
-                         beta * self.loss_fn(r_hat_1, r_1) + \
-                         beta * self.loss_fn(r_hat_2, r_2)
-                epoch_losses.append(f_loss.item() * xi.shape[0])
-                f_loss.backward()
-                self.deup_optimizer.step()
-            self.deup_train_losses.append(np.sum(epoch_losses) / count)
+                loss = loss_1 + beta * loss_2  # B x B matrix
+                loss = loss.mean()
 
-
-    def train_deup_tmp(self, epochs):
-        alpha = 1
-        gamma = 1
-        beta = 1
-        for epoch in range(epochs):
-            count = 0.
-            epoch_losses = []
-            for batch_id, (xi, yi) in enumerate(self.deup_loader):
-                count += len(xi)
-                self.deup_optimizer.zero_grad()
-
-                z = torch.randn(len(xi), self.model.noise_dim).to(self.device)
-                y_hat = self.model(xi, z)
-
-                z_prime = torch.randn(1, self.model.noise_dim).repeat(len(xi), 1).to(self.device)
-                mu = self.model(xi)
-                r_hat = self.model(xi, z_prime) - mu
-                r = mu - yi
-
-                coresidual = torch.matmul(r, r.T)
-                coresidual_hat = torch.matmul(r_hat, r_hat.T)
-
-                f_loss = alpha * self.loss_fn(y_hat, yi) + \
-                         gamma * self.loss_fn(coresidual, coresidual_hat) + \
-                         beta * self.loss_fn(r_hat, r)
-
-                epoch_losses.append(f_loss.item() * xi.shape[0])
-                f_loss.backward()
+                epoch_losses.append(loss.item() * xi.shape[0])
+                loss.backward()
                 self.deup_optimizer.step()
             self.deup_train_losses.append(np.sum(epoch_losses) / count)
 

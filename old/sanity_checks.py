@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from networks import DropoutModel
+from old.networks import DropoutModel
 from old.dropout import RegularDropout, RegularDropoutPerLayer, MultiplicativeGaussian, MultiplicativeGaussianPerLayer
 
 torch.set_default_tensor_type(torch.DoubleTensor)
